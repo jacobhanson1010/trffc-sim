@@ -2,12 +2,12 @@ import pygame
 
 
 class Vehicle:
-    def __init__(self, c_id, top_speed, acceleration, follow_distance, t_follow_distance, current_speed):
+    def __init__(self, c_id, top_speed, acceleration, follow_distance, brake_distance, current_speed):
         self.c_id = c_id
         self.top_speed = top_speed
         self.acceleration = acceleration
         self.follow_distance = follow_distance
-        self.t_follow_distance = t_follow_distance
+        self.brake_distance = brake_distance
 
         self.current_speed = current_speed
 
@@ -21,15 +21,15 @@ class Lane:
         self.length = length
 
     def process(self):
-        # determine whether cars should speed up or slow down
+        # determine whether cars should speed up
         for current_x in reversed(range(self.length)):
             if current_x in self.cars:
                 # look ahead within follow distance
                 should_accelerate = True
                 for forward_x in range(current_x, current_x + self.cars[current_x].follow_distance):
                     if forward_x + 1 in self.cars:
-                        # a car within follow distance
-                        self.cars[current_x].current_speed = 0
+                        # a car within follow distance, don't accelerate. set speed to forward car
+                        self.cars[current_x].current_speed += self.cars[forward_x+1].speed
                         should_accelerate = False
                         break
                 if should_accelerate:
@@ -73,12 +73,12 @@ def main():
     lane_1 = Lane(100)
     for i in range(5):
         # adda a new vehicle to the lane
-        lane_1.cars[i] = (Vehicle("car" + str(i), 10, 1, 2, 1, 0))
+        lane_1.cars[i] = (Vehicle("car" + str(i), 10, 1, 4, 2, 0))
 
     print("lane_1 at 0")
     print_lane(lane_1)
 
-    for x in range(1,100):
+    for x in range(1, 100):
         lane_1.process()
         print("lane_1 at " + str(x))
         print_lane_adv(lane_1)
