@@ -1,15 +1,27 @@
 import pygame
+from enum import Enum
+
+
+class Status(Enum):
+    STOPPED = 'X'
+    ACCELERATING = 'A'
+    CRUISING = 'C'
+    BRAKING = 'B'
 
 
 class Vehicle:
-    def __init__(self, c_id, top_speed, acceleration, follow_distance, brake_distance, current_speed):
+    def __init__(self, c_id, top_speed, acceleration, follow_distance, lookahead_distance, current_speed):
         self.c_id = c_id
         self.top_speed = top_speed
         self.acceleration = acceleration
         self.follow_distance = follow_distance
-        self.brake_distance = brake_distance
+        self.lookahead_distance = lookahead_distance
 
         self.current_speed = current_speed
+        self.current_acceleration = acceleration
+        self.status = Status.STOPPED
+        if current_speed > 0:
+            self.status = Status.CRUISING
 
 
 class Lane:
@@ -21,6 +33,19 @@ class Lane:
         self.length = length
 
     def process(self):
+
+        # brake if car within lookahead distance
+        for current_x in reversed(range(self.length)):
+            if current_x in self.cars:
+                # look ahead within lookahead distance
+                for forward_x in range(self.cars[current_x].lookahead_distance):
+                    lookahead_x = current_x + 1 + forward_x + self.cars[current_x].follow_distance
+                    if lookahead_x in self.cars:
+                        # a car within lookahead+follow distance, set negative acceleration
+                        self.cars[current_x].acceleration = (self.cars[lookahead_x].current_speed - self.cars[current_x].current_speed) / (forward_x + 1)
+                        self.cars[current_x].status = Status.BRAKING
+                        break
+
         # determine whether cars should speed up
         for current_x in reversed(range(self.length)):
             if current_x in self.cars:
@@ -28,15 +53,23 @@ class Lane:
                 should_accelerate = True
                 for forward_x in range(current_x, current_x + self.cars[current_x].follow_distance):
                     if forward_x + 1 in self.cars:
-                        # a car within follow distance, don't accelerate. set speed to forward car
-                        self.cars[current_x].current_speed += self.cars[forward_x+1].speed
+                        # a car within follow distance, don't accelerate
+                        self.cars[current_x].current_acceleration = 0
+                        self.cars[current_x].status = Status.CRUISING
                         should_accelerate = False
                         break
-                if should_accelerate:
-                    # no cars in follow distance, continue accelerating to top speed
-                    self.cars[current_x].current_speed += self.cars[current_x].acceleration
-                    if self.cars[current_x].current_speed > self.cars[current_x].top_speed:
-                        self.cars[current_x].current_speed = self.cars[current_x].top_speed
+                if should_accelerate and self.cars[current_x].status != Status.BRAKING:
+                    # no cars in follow distance, set current acceleration to acceleration attribute
+                    self.cars[current_x].current_acceleration = self.cars[current_x].acceleration
+                    self.cars[current_x].status = Status.ACCELERATING
+
+        # modify speed based on acceleration
+        for current_x in reversed(range(self.length)):
+            if current_x in self.cars:
+                self.cars[current_x].current_speed += self.cars[current_x].current_acceleration
+                if self.cars[current_x].current_speed > self.cars[current_x].top_speed:
+                    self.cars[current_x].current_speed = self.cars[current_x].top_speed
+                    self.cars[current_x].status = Status.CRUISING
 
         # move cars along
         for current_x in reversed(range(self.length)):
@@ -58,7 +91,7 @@ def print_lane_adv(lane_input):
         top_line += "-"
     for x in range(lane_input.length):
         if x in lane_input.cars:
-            cars_line += "X"
+            cars_line += lane_input.cars[x].status.value
         else:
             cars_line += " "
     for x in range(lane_input.length):
@@ -71,9 +104,9 @@ def print_lane_adv(lane_input):
 def main():
     print("starting...")
     lane_1 = Lane(100)
-    for i in range(5):
+    for i in range(0, 10, 2):
         # adda a new vehicle to the lane
-        lane_1.cars[i] = (Vehicle("car" + str(i), 10, 1, 4, 2, 0))
+        lane_1.cars[i] = (Vehicle("car" + str(i), 5, 1, 2, 2, 0))
 
     print("lane_1 at 0")
     print_lane(lane_1)
