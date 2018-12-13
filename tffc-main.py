@@ -1,3 +1,5 @@
+import math
+
 import pygame
 from enum import Enum
 import numpy as np
@@ -37,26 +39,26 @@ class Lane:
         # brake if car within lookahead distance
         for current_x in sorted(self.cars.keys(), reverse=True):
             # look ahead within lookahead distance
-            ahead_x = current_x + .01 \
-                          + self.cars[current_x].lookahead_distance + self.cars[current_x].follow_distance
-            for forward_x in sorted(self.cars.keys(), reverse=True):
-                if current_x < forward_x <= ahead_x:
+            ahead_x = current_x + self.cars[current_x].lookahead_distance + self.cars[current_x].follow_distance
+            for forward_x in sorted(self.cars.keys()):
+                if current_x < forward_x <= ahead_x and self.cars[current_x].current_speed > 0:
                     # a car within lookahead+follow distance, set negative acceleration
                     self.cars[current_x].status = Status.BRAKING
-                    self.cars[current_x].current_acceleration = (self.cars[ahead_x].current_speed -
-                                                                 self.cars[current_x].current_speed) / forward_x
+                    numerator = (self.cars[forward_x].current_speed - self.cars[current_x].current_speed)
+                    denominator = math.ceil((forward_x - self.cars[current_x].follow_distance - current_x) / self.cars[current_x].current_speed)
+                    self.cars[current_x].current_acceleration = \
+                        numerator / \
+                        (denominator, 1)[denominator == 0]
                     break
 
         # determine whether cars should speed up
         for current_x in sorted(self.cars.keys(), reverse=True):
             # look ahead within follow distance
+            ahead_x = current_x + self.cars[current_x].follow_distance
             should_accelerate = True
-            ahead_x = current_x + .01 + self.cars[current_x].follow_distance
-            for forward_x in sorted(self.cars.keys(), reverse=True):
-                if current_x < forward_x <= ahead_x and self.cars[current_x].status == Status.BRAKING:
-                    # a car within follow distance, stop braking
-                    self.cars[current_x].current_acceleration = 0
-                    self.cars[current_x].status = Status.CRUISING
+            for forward_x in sorted(self.cars.keys()):
+                if current_x < forward_x <= ahead_x:
+                    # a car within follow distance, don't accelerate
                     should_accelerate = False
                     break
             if should_accelerate and self.cars[current_x].status != Status.BRAKING:
@@ -68,16 +70,21 @@ class Lane:
         for current_x in sorted(self.cars.keys(), reverse=True):
             self.cars[current_x].current_speed += self.cars[current_x].current_acceleration
 
+            # set statuses
             if self.cars[current_x].current_speed > self.cars[current_x].top_speed:
                 self.cars[current_x].current_speed = self.cars[current_x].top_speed
                 self.cars[current_x].status = Status.CRUISING
+                self.cars[current_x].current_acceleration = 0
             if self.cars[current_x].current_speed <= 0:
                 self.cars[current_x].current_speed = 0
+                self.cars[current_x].status = Status.STOPPED
+            if self.cars[current_x].current_acceleration < 0 and self.cars[current_x].current_speed == 0:
+                self.cars[current_x].current_acceleration = 0
                 self.cars[current_x].status = Status.STOPPED
 
         # move cars along
         for current_x in sorted(self.cars.keys(), reverse=True):
-            new_position = round(current_x + self.cars[current_x].current_speed, 2)
+            new_position = current_x + self.cars[current_x].current_speed
             self.cars[new_position] = self.cars.pop(current_x)
 
 
@@ -112,16 +119,15 @@ def main():
     #for i in range(0, 10, 2):
         # adda a new vehicle to the lane
         #lane_1.cars[i] = Vehicle("car" + str(i/2), 5, 1, 2, 3, 0)
-    lane_1.cars[1] = Vehicle("car" + str(1), 5, 1, 2, 3, 0)
+    lane_1.cars[1] = Vehicle("car" + str(1), 10, 1, 2, 12, 0)
 
-    lane_1.cars[50] = Vehicle("carX", 0, 0, 2, 3, 0)
+    lane_1.cars[50] = Vehicle("carX", 2, 1, 2, 3, 0)
 
     print("lane_1 at 0")
     print_lane(lane_1)
 
-    for x in range(1, 15):
+    for x in range(1, 150):
         lane_1.process()
-        print("lane_1 at " + str(x))
         print_lane(lane_1)
         #print_lane_adv(lane_1)
         #input("Press Enter to continue...")
